@@ -1,0 +1,18 @@
+[package]
+name = "tasmota-rs"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+serde = { version = "1.0.130", features = ["derive"] }
+serde_json = "1.0.67"
+
+reqwest = { version = "0.11.4",  features = ["blocking", "json"] }
+
+ipnet = "2.3.1"
+
+config = "0.11"
+shellexpand = "2.0"
