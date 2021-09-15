@@ -36,7 +36,7 @@ fn main() {
         let friendly_name_1 = &device.get_cmnd(&client, "FriendlyName1").unwrap();
         let devicename = &device.get_cmnd(&client, "DeviceName").unwrap();
 
-    let friendly_name_1: FriendlyName1 = match &friendly_name_1.json() {
+    let friendly_name_1: FriendlyName1 = match friendly_name_1.json() {
         Ok(value) => value,
         Err(error) => panic!("Failed to get FriendlyName1: {:?}", error)
     };
