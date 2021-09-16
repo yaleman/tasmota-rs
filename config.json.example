@@ -1,0 +1,5 @@
+{
+    "username" : "admin",
+    "password" : "password",
+    "ip_range" : "10.0.5.129/25"
+}
