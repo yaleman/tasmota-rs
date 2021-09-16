@@ -16,23 +16,25 @@ pub struct DeviceName {
     pub device_name: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TasmotaDevice {
     pub ip: std::net::IpAddr,
     pub username: String,
     pub password: Option<String>,
-
+    pub friendly_name_1: Option<String>,
 }
 
 impl TasmotaDevice {
+
     pub fn new(ip: std::net::IpAddr,
-            username: &str,
-            password: &Option<String>
+            username: String,
+            password: Option<String>
         ) -> Self {
         TasmotaDevice{
             ip,
             username: username.to_string(),
-            password: password.to_owned()
+            password: password.to_owned(),
+            friendly_name_1: None,
         }
     }
 }

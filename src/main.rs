@@ -6,6 +6,10 @@
 extern crate pretty_env_logger;
 #[macro_use] extern crate log;
 
+// use std::sync::mpsc::channel;
+use rayon::prelude::*;
+
+
 mod structs;
 
 use regex::bytes::Regex;
@@ -24,6 +28,7 @@ pub struct TasmotaConfig {
 }
 
 impl TasmotaConfig {
+    /// Build a new [TasmotaConfig]
     pub fn new(username: &str, password: Option<&str>) -> Self {
         TasmotaConfig {
             username: username.to_string(),
@@ -33,8 +38,11 @@ impl TasmotaConfig {
 }
 
 /// Queries the home page of the device and looks for the version string to confirm if it's a Tasmota device.
-pub async fn check_is_tasmota(device: &TasmotaDevice, client: &reqwest::Client) -> bool {
-    let response = crate::get_device_uri(device, &client, String::from("/")).await;
+pub fn check_is_tasmota(
+    device: &TasmotaDevice,
+    client: &reqwest::blocking::Client
+) -> bool {
+    let response = crate::get_device_uri(device, &client, String::from("/"));
     // eprintln!("check_is_tasmota debug: {:?}", &response);
     // Check for this Tasmota 9.5.0.8 by Theo Arends
     lazy_static! {
@@ -55,7 +63,7 @@ pub async fn check_is_tasmota(device: &TasmotaDevice, client: &reqwest::Client) 
         },
         Ok(response) => {
             warn!("Successfully connected to {}", device.ip);
-            let result_bytes = response.bytes().await.unwrap();
+            let result_bytes = response.bytes().unwrap();
             let result = RE.is_match(&result_bytes);
             debug!("regex result: {:?}", result);
             if !result {
@@ -67,119 +75,114 @@ pub async fn check_is_tasmota(device: &TasmotaDevice, client: &reqwest::Client) 
 }
 
 /// does a GET request against http://`device.ip``uri`
-pub async fn get_device_uri(
+pub fn get_device_uri(
     device: &TasmotaDevice,
-    client: &reqwest::Client,
+    client: &reqwest::blocking::Client,
     uri: String,
     ) ->
-    Result<reqwest::Response, reqwest::Error> {
+    Result<reqwest::blocking::Response, reqwest::Error> {
     // debug!("uri: {:?}", uri);
     let full_url = format!("http://{}{}", device.ip, uri);
     let username = &device.username.to_owned();
     let password = &device.password.to_owned();
-    match password {
+    let response = match password {
         Some(password) => {
          client.get(full_url)
             .basic_auth(
                 username,
                 Some(password))
-            .send().await
+            .send()?
             },
         None => {
             client.get(full_url)
             .basic_auth(
                 username, Some(""))
-                .send().await
+                .send()?
         }
-    }
+    };
+    Ok(response)
 
 }
 
 /// hits the `cmnd` endpoint for a given device
-pub async fn get_cmnd(
+pub fn get_cmnd(
     device: &TasmotaDevice,
-    client: &reqwest::Client, cmnd: &str) ->
-    Result<reqwest::Response, reqwest::Error> {
+    client: &reqwest::blocking::Client, cmnd: &str) ->
+    Result<reqwest::blocking::Response, reqwest::Error> {
     let uri = format!("/cm?cmnd={}", cmnd).clone();
-    get_device_uri(device, client, uri).await
+    get_device_uri(device, client, uri)
 }
 
-/// Returns a configured [reqwest::Client]
-pub fn get_client() -> reqwest::Client {
-    reqwest::Client::builder()
+/// Returns a configured [reqwest::blocking::Client]
+pub fn get_client() -> reqwest::blocking::Client {
+    reqwest::blocking::Client::builder()
         .timeout(Duration::new(2,0))
         .build()
         .unwrap()
 }
 
 /// Does the checking and pulling thing, returns a [TasmotaDevice] object if it succeeds..
-pub async fn check_host(
-    ip: std::net::IpAddr,
-    config: TasmotaConfig,
-
+pub fn check_host(
+    mut input_device: TasmotaDevice,
     ) -> Result<TasmotaDevice, String> {
 
     let client = get_client();
 
-    info!("Checking {}", ip);
-        let password = Some(config.password.unwrap().to_string());
-        let device = crate::structs::TasmotaDevice::new(
-            ip,
-            &config.username,
-            &password,
-        );
+    info!("Checking {}", input_device.ip);
 
-        let is_tasmota: bool = check_is_tasmota(&device, &client).await.to_owned();
+        let is_tasmota: bool = check_is_tasmota(&input_device, &client);
         if !is_tasmota {
-            let result = format!("{} Not tasmota, skipping", ip);
+            let result = format!("{} Not tasmota, skipping", input_device.ip);
             debug!("{}", result);
             return Err(result);
         }
 
-        let fn_result = get_cmnd(&device, &client, "FriendlyName1").await;
+        let fn_result = get_cmnd(&input_device, &client, "FriendlyName1");
         let friendly_name_1 = match fn_result {
             Ok(value) => value,
             Err(error) => {
-                error!("{} Error: {:?}", ip, error);
-                return Err(format!("{} Error: {:?}", ip, error))
+                let errmsg = format!("{} Error: {:?}", input_device.ip, error);
+                error!("{}", errmsg);
+                return Err(errmsg)
             }
         };
         eprintln!("friendly_name: {:?}", friendly_name_1);
         if friendly_name_1.status() != 200 {
-            let result = format!("{} got status {:?} for FriendlyName call, skipping", friendly_name_1.status(), ip);
+            let result = format!("{} got status {:?} for FriendlyName call, skipping", friendly_name_1.status(), input_device.ip);
             debug!("{}", result);
             return Err(result)
         }
         let friendly_json = friendly_name_1.json();
-        let friendly_name_1: FriendlyName1 = match friendly_json.await {
+        let friendly_name_1: FriendlyName1 = match friendly_json {
             Ok(value) => value,
-            Err(error) => panic!("{} Failed to get FriendlyName1: {:?}", ip, error)
+            Err(error) => panic!("{} Failed to get FriendlyName1: {:?}", input_device.ip, error)
         };
 
-        let devicename = match get_cmnd(&device, &client, "DeviceName").await {
+        let devicename = match get_cmnd(&input_device, &client, "DeviceName") {
             Ok(val) => val,
             Err(error) => {
-                let error = format!("Error calling {}, skipping: {:?}", ip, error);
+                let error = format!("Error calling {}, skipping: {:?}", input_device.ip, error);
                 error!("{}", error);
                 return Err(error)
             }
         };
-        let devicename: DeviceName = match devicename.json().await {
+        let devicename: DeviceName = match devicename.json() {
             Ok(value) => value,
             Err(error) => {
-                let error = format!("Failed to JSON decode for {}: {:?}", ip, error);
+                let error = format!("Failed to JSON decode for {}: {:?}", input_device.ip, error);
                 error!("{}", error);
                 return Err(error)
             }
         };
 
-        debug!("devicename: \t{:?}", devicename.device_name);
         debug!("friendly_name_1: \t{:?}", friendly_name_1.friendly_name_1);
-        Ok(device)
+        input_device.friendly_name_1 = Some(friendly_name_1.friendly_name_1);
+        debug!("devicename: \t{:?}", devicename.device_name);
+        Ok(input_device)
 }
 
-#[async_std::main]
-async fn main()  -> std::io::Result<()> {
+fn main()  -> std::io::Result<()> {
+
     pretty_env_logger::init();
 
     let config_file = String::from("~/.config/tasmota-rs.json");
@@ -196,15 +199,15 @@ async fn main()  -> std::io::Result<()> {
             panic!("Couldn't get username: {:?}", error);
         }
     };
-    let password: Option<&str> = match config.get("password") {
+    let password = match config.get_str("password") {
         Err(error) => {
             eprintln!("Failed to get password: {:?}", error);
             None
         }
-        Ok(value) => value
+        Ok(value) => Some(value)
     };
 
-    eprintln!("Auth: {:?}/{:?}", username, password);
+    // eprintln!("Auth: {:?}/{:?}", username, password);
 
     let config_ip: String = match config.get("ip_range") {
         Err(error) => panic!("Failed to get ip_range from config: {:?}", error),
@@ -219,18 +222,28 @@ async fn main()  -> std::io::Result<()> {
     // println!("!");
      // if we fail at this point we deserve to...
 
+    let mut tasks: Vec<TasmotaDevice> = [].to_vec();
 
     for ip in net.hosts() {
-
-        let _device = tokio::spawn(
-            check_host(
+        tasks.push(
+            TasmotaDevice::new(
                 ip.into(),
-                TasmotaConfig::new(&username, password),
+                username.to_string(),
+                password.clone(),
             )
-        );
-
+        )
     }
 
+    debug!("Made vec of tasks: {:?}", tasks);
+    let taskrunner = tasks.into_par_iter()
+        .map(|t| check_host(t));
+    let results: Vec<Result<TasmotaDevice,String>> = taskrunner.collect();
 
+    // debug!("{:?}", results);
+    for device in results {
+        if let Ok(value) = device {
+            info!("{:?}", value);
+        }
+    }
     Ok(())
 }
