@@ -1,5 +1,7 @@
 // structs
 // use std::net::Ipv4Addr;
+
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -14,38 +16,23 @@ pub struct DeviceName {
     pub device_name: String,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct TasmotaDevice {
-    ip: std::net::IpAddr,
-    username: &'static str,
-    password: Option<&'static str>,
+    pub ip: std::net::IpAddr,
+    pub username: String,
+    pub password: Option<String>,
 
 }
 
 impl TasmotaDevice {
-
     pub fn new(ip: std::net::IpAddr,
-            username: &'static str,
-            password: Option<&'static str>
+            username: &str,
+            password: &Option<String>
         ) -> Self {
         TasmotaDevice{
-            ip, username, password
+            ip,
+            username: username.to_string(),
+            password: password.to_owned()
         }
     }
-
-    fn get_baseurl(self) -> String {
-        format!("http://{}", self.ip)
-    }
-
-    pub fn get_cmnd(self, client: &reqwest::blocking::Client, cmnd: &str) ->
-        Result<reqwest::blocking::Response, ()> {
-    match client.get(format!("{}/cm?cmnd={}", &self.get_baseurl(), cmnd))
-        .basic_auth(
-            &self.username,
-            self.password)
-        .send() {
-            Ok(value) => Ok(value),
-            Err(error) => panic!("Error getting {}/cm?cmnd={}: {:?}", self.get_baseurl(), cmnd, error)
-        }
-}
 }
