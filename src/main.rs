@@ -15,20 +15,19 @@ use ipnet::Ipv4Net;
 use crate::structs::*;
 
 /// Represents configuration of the app
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct TasmotaConfig {
     /// username for access
-    pub username: &'static str,
+    pub username: String,
     /// password for access
-    pub password: Option<&'static str>,
+    pub password: Option<String>,
 }
 
 impl TasmotaConfig {
-    pub fn new(username: &'static str, password: &'static str) -> Self {
-        let username = format!("{}", username).clone().as_str();
+    pub fn new(username: &str, password: Option<&str>) -> Self {
         TasmotaConfig {
-            username: username.clone(),
-            password: Some(&password),
+            username: username.to_string(),
+            password: password.map(str::to_string),
         }
     }
 }
@@ -126,7 +125,7 @@ pub async fn check_host(
         let password = Some(config.password.unwrap().to_string());
         let device = crate::structs::TasmotaDevice::new(
             ip,
-            config.username,
+            &config.username,
             &password,
         );
 
@@ -191,8 +190,8 @@ async fn main()  -> std::io::Result<()> {
         .unwrap();
 
 
-    let username: String = match config.get_str("username") {
-        Ok(value) => value.to_owned(),
+    let username = match config.get_str("username") {
+        Ok(value) => value,
         Err(error) => {
             panic!("Couldn't get username: {:?}", error);
         }
@@ -226,7 +225,7 @@ async fn main()  -> std::io::Result<()> {
         let _device = tokio::spawn(
             check_host(
                 ip.into(),
-                TasmotaConfig::new(&username.as_str(), &password.unwrap().to_string()),
+                TasmotaConfig::new(&username, password),
             )
         );
 
