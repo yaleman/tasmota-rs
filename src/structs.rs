@@ -1,4 +1,3 @@
-
 //! structs
 
 use serde::{Deserialize, Serialize};
@@ -38,11 +37,8 @@ pub struct TasmotaDevice {
 
 impl TasmotaDevice {
     /// build a new device from ip/username/password
-    pub fn new(ip: std::net::IpAddr,
-            username: String,
-            password: Option<String>
-        ) -> Self {
-        TasmotaDevice{
+    pub fn new(ip: std::net::IpAddr, username: String, password: Option<String>) -> Self {
+        TasmotaDevice {
             ip,
             username,
             password,
@@ -56,9 +52,12 @@ impl TasmotaDevice {
 impl std::fmt::Display for TasmotaDevice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
-            f, "{{ip={:?}, FriendlyName1={:?}, DeviceName={:?}, mac_address={:?}}}",
+            f,
+            "{{ip={:?}, FriendlyName1={:?}, DeviceName={:?}, mac_address={:?}}}",
             self.ip,
-            self.friendly_name_1.as_ref().unwrap_or(&String::from("blank")),
+            self.friendly_name_1
+                .as_ref()
+                .unwrap_or(&String::from("blank")),
             self.device_name.as_ref().unwrap_or(&String::from("blank")),
             self.mac_address.as_ref().unwrap_or(&String::from("blank")),
         )
