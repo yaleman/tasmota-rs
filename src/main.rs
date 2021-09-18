@@ -95,8 +95,8 @@ pub fn get_mac_address(device: &TasmotaDevice) -> Option<String> {
 }
 
 /// Queries the home page of the device and looks for the version string to confirm if it's a Tasmota device.
-pub fn check_is_tasmota(device: &TasmotaDevice, client: &reqwest::blocking::Client) -> bool {
-    let response = crate::get_device_uri(device, &client, String::from("/"));
+pub fn check_is_tasmota(device: &TasmotaDevice) -> Option<String> { // TODO: make this return a semver-ish thing
+    let response = crate::get_device_uri(device, &get_client(), String::from("/"));
     // eprintln!("check_is_tasmota debug: {:?}", &response);
     // Check for this Tasmota 9.5.0.8 by Theo Arends
     lazy_static! {
@@ -109,24 +109,25 @@ pub fn check_is_tasmota(device: &TasmotaDevice, client: &reqwest::blocking::Clie
         Err(error) => {
             if error.is_timeout() {
                 debug!("Timed out connecting to {:?}", device.ip);
-                false
+                None
             } else if error.is_connect() {
                 debug!("Connection error connecting to {:?}", device.ip);
-                false
+                None
             } else {
                 error!("Failed to query {}: {:?}", device.ip, error);
-                false
+                None
             }
         }
         Ok(response) => {
             warn!("Successfully connected to {}", device.ip);
             let result_bytes = response.bytes().unwrap();
-            let result = RE.is_match(&result_bytes);
+            let result = RE.captures(&result_bytes);
             debug!("regex result: {:?}", result);
-            if !result {
-                debug!("{:?}", &result_bytes);
-            }
-            result
+            unimplemented!();
+            // if !result {
+            //     debug!("{:?}", &result_bytes);
+            // }
+            // Some(result.into())
         }
     }
 }
@@ -253,26 +254,31 @@ fn get_devicename(input_device: &TasmotaDevice) -> Option<String> {
 
 /// Does the checking and pulling thing, returns a [TasmotaDevice] object if it succeeds..
 pub fn check_host(mut input_device: TasmotaDevice) -> Result<TasmotaDevice, String> {
-    let client = get_client();
-
     info!("Checking {}", input_device.ip);
 
-    let is_tasmota: bool = check_is_tasmota(&input_device, &client);
-    if !is_tasmota {
-        let result = format!("{} Not tasmota, skipping", input_device.ip);
-        debug!("{}", result);
-        return Err(result);
-    }
+    let version = match check_is_tasmota(&input_device) {
+        Some(version) => {
+            version
+        }
+        None => {
+            let result = format!("{} Not tasmota, skipping", input_device.ip);
+            debug!("{}", result);
+            return Err(result);
+        }
+    };
+    debug!("Version: {:?}", version);
 
     input_device.friendly_name_1 = get_friendlyname(&input_device);
     input_device.device_name = get_devicename(&input_device);
 
     input_device.mac_address = get_mac_address(&input_device);
 
-    debug!("mac_address: \t{:?}", input_device.mac_address);
+    // TODO: grab the version from check_tasmota
 
-    debug!("friendly_name_1: \t{:?}", input_device.friendly_name_1);
-    debug!("devicename: \t{:?}", input_device.device_name);
+    // debug!("mac_address: \t{:?}", input_device.mac_address);
+
+    // debug!("friendly_name_1: \t{:?}", input_device.friendly_name_1);
+    // debug!("devicename: \t{:?}", input_device.device_name);
     Ok(input_device)
 }
 

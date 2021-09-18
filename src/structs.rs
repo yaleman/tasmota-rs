@@ -27,6 +27,8 @@ pub struct TasmotaDevice {
     pub username: String,
     /// password, if needed
     pub password: Option<String>,
+    /// version number, if found
+    pub version: Option<String>,
     /// friendly name
     pub friendly_name_1: Option<String>,
     /// internal device name
@@ -42,6 +44,7 @@ impl TasmotaDevice {
             ip,
             username,
             password,
+            version: None,
             friendly_name_1: None,
             device_name: None,
             mac_address: None,
