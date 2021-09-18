@@ -9,6 +9,7 @@ extern crate pretty_env_logger;
 extern crate log;
 
 use std::env;
+use std::str::from_utf8;
 
 // use std::sync::mpsc::channel;
 use rayon::prelude::*;
@@ -75,7 +76,6 @@ pub fn get_mac_address(device: &TasmotaDevice) -> Option<String> {
                     return None;
                 }
             };
-            use std::str::from_utf8;
             match captures.get(1) {
                 Some(value) => {
                     debug!("mac finder: {:?}", value);
@@ -100,7 +100,7 @@ pub fn check_is_tasmota(device: &TasmotaDevice) -> Option<String> { // TODO: mak
     // eprintln!("check_is_tasmota debug: {:?}", &response);
     // Check for this Tasmota 9.5.0.8 by Theo Arends
     lazy_static! {
-        static ref RE: Regex = match Regex::new(r".*Tasmota \d\.\d\.(\d|\d\.\d) by Theo Arends.*") {
+        static ref RE: Regex = match regex::bytes::Regex::new(r"(Tasmota (?P<version>\d\.\d\.(\d|\d\.\d)) by Theo Arends)") {
             Ok(value) => value,
             Err(error) => panic!("failed to create tasmota_finder regex: {:?}", error),
         };
@@ -118,16 +118,25 @@ pub fn check_is_tasmota(device: &TasmotaDevice) -> Option<String> { // TODO: mak
                 None
             }
         }
+
         Ok(response) => {
             warn!("Successfully connected to {}", device.ip);
             let result_bytes = response.bytes().unwrap();
-            let result = RE.captures(&result_bytes);
-            debug!("regex result: {:?}", result);
-            unimplemented!();
-            // if !result {
-            //     debug!("{:?}", &result_bytes);
-            // }
-            // Some(result.into())
+            match RE.captures(&result_bytes) {
+                Some(version) => {
+                    debug!("Named capture: {:?}",
+                            from_utf8(&version.name("version")
+                                .unwrap()
+                                .as_bytes()));
+                    Some(from_utf8(&version.name("version")
+                    .unwrap()
+                    .as_bytes()).unwrap().to_string())
+                },
+                None => {
+                    debug!("Failed to find version for {:?}", device.ip);
+                    None
+                }
+            }
         }
     }
 }
@@ -256,17 +265,14 @@ fn get_devicename(input_device: &TasmotaDevice) -> Option<String> {
 pub fn check_host(mut input_device: TasmotaDevice) -> Result<TasmotaDevice, String> {
     info!("Checking {}", input_device.ip);
 
-    let version = match check_is_tasmota(&input_device) {
-        Some(version) => {
-            version
-        }
-        None => {
-            let result = format!("{} Not tasmota, skipping", input_device.ip);
-            debug!("{}", result);
-            return Err(result);
-        }
+    input_device.version = check_is_tasmota(&input_device);
+
+    if input_device.version.is_none() {
+        let result = format!("{} Not tasmota, skipping", input_device.ip);
+        debug!("{}", result);
+        return Err(result);
     };
-    debug!("Version: {:?}", version);
+    // debug!("Version: {:?}", version);
 
     input_device.friendly_name_1 = get_friendlyname(&input_device);
     input_device.device_name = get_devicename(&input_device);

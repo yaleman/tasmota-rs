@@ -56,13 +56,14 @@ impl std::fmt::Display for TasmotaDevice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{ip={:?}, FriendlyName1={:?}, DeviceName={:?}, mac_address={:?}}}",
+            "{{ip={:?}, FriendlyName1={:?}, DeviceName={:?}, mac_address={:?}, version={:?} }}",
             self.ip,
             self.friendly_name_1
                 .as_ref()
                 .unwrap_or(&String::from("blank")),
             self.device_name.as_ref().unwrap_or(&String::from("blank")),
             self.mac_address.as_ref().unwrap_or(&String::from("blank")),
+            self.version.as_ref().unwrap_or(&String::from("blank")),
         )
     }
 }
