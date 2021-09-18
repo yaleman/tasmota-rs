@@ -6,11 +6,12 @@
 extern crate pretty_env_logger;
 #[macro_use] extern crate log;
 
+use std::env;
+
 // use std::sync::mpsc::channel;
 use rayon::prelude::*;
 
-
-mod structs;
+pub mod structs;
 
 use regex::bytes::Regex;
 use std::time::Duration;
@@ -37,6 +38,61 @@ impl TasmotaConfig {
     }
 }
 
+/// Hand it the bytes representation of the webpage, you'll (maybe) get the MAC address back.
+pub fn get_mac_address(
+    device: &TasmotaDevice,
+    client: &reqwest::blocking::Client
+    ) -> Option<String> {
+
+    let result = get_device_uri(device, client, String::from("/in"));
+
+    match result {
+        Ok(res) => {
+            let mac_finder = match Regex::new(r"([A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2}:[A-F0-9]{2})"){
+                Ok(value) => value,
+                Err(error) => panic!("failed to create mac address finder regex: {:?}", error)
+            };
+            //Ok(String::from("48:3F:DA:45:0F:D0"))
+
+            let resbytes = match res.bytes() {
+                Ok(value) => value,
+                Err(error) => {
+                    let errmsg = format!("Failed to get main page for {}: {:?}", device.ip, error);
+                    error!("{}", errmsg);
+                    return None
+                }
+            };
+
+            let captures = match mac_finder.captures(&resbytes) {
+                Some(value) => value,
+                None => {
+                    let errmsg = format!("Failed to find MAC address in page content for {}", device.ip);
+                    error!("{}", errmsg);
+                    debug!("Page bytes:\n{:?}", &resbytes);
+                    return None
+                }
+            };
+            use std::str::from_utf8;
+            match captures.get(1) {
+                Some(value) => {
+                    debug!("mac finder: {:?}", value);
+                    Some(from_utf8(value.as_bytes()).unwrap().to_string())
+                }
+                None => {
+                    debug!("Failed to get mac address for device: {}", device);
+                    None
+                }
+            }
+        },
+        Err(error) => {
+            error!("Failed to get mac address: {:?}", error);
+            None
+        }
+
+    }
+
+}
+
 /// Queries the home page of the device and looks for the version string to confirm if it's a Tasmota device.
 pub fn check_is_tasmota(
     device: &TasmotaDevice,
@@ -48,7 +104,7 @@ pub fn check_is_tasmota(
     lazy_static! {
         static ref RE: Regex = match Regex::new(r".*Tasmota \d\.\d\.(\d|\d\.\d) by Theo Arends.*") {
             Ok(value) => value,
-            Err(error) => panic!("ugh {:?}", error)
+            Err(error) => panic!("failed to create tasmota_finder regex: {:?}", error)
         };
     }
     match response{
@@ -109,7 +165,7 @@ pub fn get_cmnd(
     device: &TasmotaDevice,
     client: &reqwest::blocking::Client, cmnd: &str) ->
     Result<reqwest::blocking::Response, reqwest::Error> {
-    let uri = format!("/cm?cmnd={}", cmnd).clone();
+    let uri = format!("/cm?cmnd={}", cmnd);
     get_device_uri(device, client, uri)
 }
 
@@ -175,22 +231,48 @@ pub fn check_host(
             }
         };
 
+        input_device.mac_address = get_mac_address(
+            &input_device,
+            &get_client(),
+        );
+
+        debug!("mac_address: \t{:?}", input_device.mac_address);
+
         debug!("friendly_name_1: \t{:?}", friendly_name_1.friendly_name_1);
         input_device.friendly_name_1 = Some(friendly_name_1.friendly_name_1);
         debug!("devicename: \t{:?}", devicename.device_name);
         Ok(input_device)
 }
 
-fn main()  -> std::io::Result<()> {
-
-    pretty_env_logger::init();
-
+fn get_config() -> config::Config {
     let config_file = String::from("~/.config/tasmota-rs.json");
     let config_filename: String = shellexpand::tilde(&config_file).into_owned();
     let mut config = config::Config::default();
     config
         .merge(config::File::with_name(&config_filename))
         .unwrap();
+    config
+}
+
+fn main()  -> std::io::Result<()> {
+    if env::var_os("RUST_LOG").is_none() {
+        env::set_var("RUST_LOG", "info");
+    }
+
+    pretty_env_logger::init_timed();
+    let config = get_config();
+
+    match config.get_int("max_threads") {
+        Ok(threads) => {
+            info!("Setting max threads to: {}", threads);
+            rayon::ThreadPoolBuilder::new().num_threads(threads as usize).build_global().unwrap();
+        },
+        Err(error) => {
+            debug!("Failed to read threads from config: {:?}", error);
+        }
+    }
+
+
 
 
     let username = match config.get_str("username") {
@@ -236,14 +318,16 @@ fn main()  -> std::io::Result<()> {
 
     debug!("Made vec of tasks: {:?}", tasks);
     let taskrunner = tasks.into_par_iter()
-        .map(|t| check_host(t));
+        .map(check_host);
     let results: Vec<Result<TasmotaDevice,String>> = taskrunner.collect();
 
-    // debug!("{:?}", results);
-    for device in results {
-        if let Ok(value) = device {
-            info!("{:?}", value);
+    if !results.is_empty()  {
+        info!("Listing found devices");
+        info!("#####################");
+        for device in results.into_iter().flatten() {
+            info!("{}", device);
         }
     }
+
     Ok(())
 }
