@@ -40,11 +40,10 @@ impl TasmotaConfig {
 
 /// Hand it the bytes representation of the webpage, you'll (maybe) get the MAC address back.
 pub fn get_mac_address(
-    device: &TasmotaDevice,
-    client: &reqwest::blocking::Client
+    device: &TasmotaDevice
     ) -> Option<String> {
 
-    let result = get_device_uri(device, client, String::from("/in"));
+    let result = get_device_uri(device, &get_client(), String::from("/in"));
 
     match result {
         Ok(res) => {
@@ -112,6 +111,9 @@ pub fn check_is_tasmota(
             if error.is_timeout() {
                 debug!("Timed out connecting to {:?}", device.ip);
                 false
+            } else if error.is_connect() {
+                debug!("Connection error connecting to {:?}", device.ip);
+                false
             } else {
                 error!("Failed to query {}: {:?}", device.ip, error);
                 false
@@ -177,6 +179,68 @@ pub fn get_client() -> reqwest::blocking::Client {
         .unwrap()
 }
 
+/// gets the FriendlyName1 value from a device
+fn get_friendlyname(input_device: &TasmotaDevice) -> Option<String> {
+    let fn_result = get_cmnd(&input_device, &get_client(), "FriendlyName1");
+    let response = match fn_result {
+        Ok(value) => value,
+        Err(error) => {
+            let errmsg = format!("{} Error running FriendlyName1 command: {:?}", input_device.ip, error);
+            error!("{}", errmsg);
+            return None
+        }
+    };
+    debug!("friendly_name: {:?}", response);
+    if response.status() != 200 {
+        let result = format!("{} got status {:?} for FriendlyName call, skipping", response.status(), input_device.ip);
+        debug!("{}", result);
+        return None
+    }
+    let friendly_json = response.json();
+    let friendly_name: FriendlyName1 = match friendly_json {
+        Ok(value) => {
+            // Some(value.friendly_name_1),
+            debug!("friendly_json: {:?}", value);
+            value
+        }
+        Err(error) => {
+            error!("{} Failed to decode FriendlyName1: {:?}", input_device.ip, error);
+            return None
+        }
+    };
+    Some(friendly_name.friendly_name_1)
+}
+/// gets the DeviceNAme value from a device
+fn get_devicename(input_device: &TasmotaDevice) -> Option<String> {
+    let fn_result = get_cmnd(&input_device, &get_client(), "DeviceName");
+    let response = match fn_result {
+        Ok(value) => value,
+        Err(error) => {
+            let errmsg = format!("{} Error running DeviceName command: {:?}", input_device.ip, error);
+            error!("{}", errmsg);
+            return None
+        }
+    };
+    debug!("device_name response: {:?}", response);
+    if response.status() != 200 {
+        let result = format!("{} got status {:?} for DeviceName call, skipping", response.status(), input_device.ip);
+        debug!("{}", result);
+        return None
+    }
+    let friendly_json = response.json();
+    let device_name: DeviceName = match friendly_json {
+        Ok(value) => {
+            debug!("device_name: {:?}", value);
+            value
+        }
+        Err(error) => {
+            error!("{} Failed to decode DeviceName: {:?}", input_device.ip, error);
+            return None
+        }
+    };
+    Some(device_name.device_name)
+}
+
 /// Does the checking and pulling thing, returns a [TasmotaDevice] object if it succeeds..
 pub fn check_host(
     mut input_device: TasmotaDevice,
@@ -193,54 +257,15 @@ pub fn check_host(
             return Err(result);
         }
 
-        let fn_result = get_cmnd(&input_device, &client, "FriendlyName1");
-        let friendly_name_1 = match fn_result {
-            Ok(value) => value,
-            Err(error) => {
-                let errmsg = format!("{} Error: {:?}", input_device.ip, error);
-                error!("{}", errmsg);
-                return Err(errmsg)
-            }
-        };
-        eprintln!("friendly_name: {:?}", friendly_name_1);
-        if friendly_name_1.status() != 200 {
-            let result = format!("{} got status {:?} for FriendlyName call, skipping", friendly_name_1.status(), input_device.ip);
-            debug!("{}", result);
-            return Err(result)
-        }
-        let friendly_json = friendly_name_1.json();
-        let friendly_name_1: FriendlyName1 = match friendly_json {
-            Ok(value) => value,
-            Err(error) => panic!("{} Failed to get FriendlyName1: {:?}", input_device.ip, error)
-        };
+        input_device.friendly_name_1 = get_friendlyname(&input_device);
+        input_device.device_name = get_devicename(&input_device);
 
-        let devicename = match get_cmnd(&input_device, &client, "DeviceName") {
-            Ok(val) => val,
-            Err(error) => {
-                let error = format!("Error calling {}, skipping: {:?}", input_device.ip, error);
-                error!("{}", error);
-                return Err(error)
-            }
-        };
-        let devicename: DeviceName = match devicename.json() {
-            Ok(value) => value,
-            Err(error) => {
-                let error = format!("Failed to JSON decode for {}: {:?}", input_device.ip, error);
-                error!("{}", error);
-                return Err(error)
-            }
-        };
-
-        input_device.mac_address = get_mac_address(
-            &input_device,
-            &get_client(),
-        );
+        input_device.mac_address = get_mac_address(&input_device,);
 
         debug!("mac_address: \t{:?}", input_device.mac_address);
 
-        debug!("friendly_name_1: \t{:?}", friendly_name_1.friendly_name_1);
-        input_device.friendly_name_1 = Some(friendly_name_1.friendly_name_1);
-        debug!("devicename: \t{:?}", devicename.device_name);
+        debug!("friendly_name_1: \t{:?}", input_device.friendly_name_1);
+        debug!("devicename: \t{:?}", input_device.device_name);
         Ok(input_device)
 }
 
