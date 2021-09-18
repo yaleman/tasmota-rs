@@ -95,12 +95,15 @@ pub fn get_mac_address(device: &TasmotaDevice) -> Option<String> {
 }
 
 /// Queries the home page of the device and looks for the version string to confirm if it's a Tasmota device.
-pub fn check_is_tasmota(device: &TasmotaDevice) -> Option<String> { // TODO: make this return a semver-ish thing
+pub fn check_is_tasmota(device: &TasmotaDevice) -> Option<String> {
+    // TODO: make this return a semver-ish thing
     let response = crate::get_device_uri(device, &get_client(), String::from("/"));
     // eprintln!("check_is_tasmota debug: {:?}", &response);
     // Check for this Tasmota 9.5.0.8 by Theo Arends
     lazy_static! {
-        static ref RE: Regex = match regex::bytes::Regex::new(r"(Tasmota (?P<version>\d\.\d\.(\d|\d\.\d)) by Theo Arends)") {
+        static ref RE: Regex = match regex::bytes::Regex::new(
+            r"(Tasmota (?P<version>\d\.\d\.(\d|\d\.\d)) by Theo Arends)"
+        ) {
             Ok(value) => value,
             Err(error) => panic!("failed to create tasmota_finder regex: {:?}", error),
         };
@@ -124,14 +127,16 @@ pub fn check_is_tasmota(device: &TasmotaDevice) -> Option<String> { // TODO: mak
             let result_bytes = response.bytes().unwrap();
             match RE.captures(&result_bytes) {
                 Some(version) => {
-                    debug!("Named capture: {:?}",
-                            from_utf8(&version.name("version")
-                                .unwrap()
-                                .as_bytes()));
-                    Some(from_utf8(&version.name("version")
-                    .unwrap()
-                    .as_bytes()).unwrap().to_string())
-                },
+                    debug!(
+                        "Named capture: {:?}",
+                        from_utf8(&version.name("version").unwrap().as_bytes())
+                    );
+                    Some(
+                        from_utf8(&version.name("version").unwrap().as_bytes())
+                            .unwrap()
+                            .to_string(),
+                    )
+                }
                 None => {
                     debug!("Failed to find version for {:?}", device.ip);
                     None
