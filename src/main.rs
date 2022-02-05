@@ -19,16 +19,18 @@ pub mod structs;
 use ipnet::Ipv4Net;
 use regex::bytes::Regex;
 use std::time::Duration;
+use std::process::exit;
 
 use crate::structs::*;
 
-/// Represents configuration of the app
-#[derive(Debug, Clone)]
-pub struct TasmotaConfig {
-    /// username for access
-    pub username: String,
-    /// password for access
-    pub password: Option<String>,
+use clap::Parser;
+
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    #[clap(short, long)]
+    target: Option<String>,
 }
 
 impl TasmotaConfig {
@@ -102,7 +104,7 @@ pub fn check_is_tasmota(device: &TasmotaDevice) -> Option<String> {
     // Check for this Tasmota 9.5.0.8 by Theo Arends
     lazy_static! {
         static ref RE: Regex = match regex::bytes::Regex::new(
-            r"(Tasmota (?P<version>\d\.\d\.(\d|\d\.\d)) by Theo Arends)"
+            r"(Tasmota (?P<version>\d+\.\d+\.(\d+|\d+\.\d+)) by Theo Arends)"
         ) {
             Ok(value) => value,
             Err(error) => panic!("failed to create tasmota_finder regex: {:?}", error),
@@ -129,10 +131,10 @@ pub fn check_is_tasmota(device: &TasmotaDevice) -> Option<String> {
                 Some(version) => {
                     debug!(
                         "Named capture: {:?}",
-                        from_utf8(&version.name("version").unwrap().as_bytes())
+                        from_utf8(version.name("version").unwrap().as_bytes())
                     );
                     Some(
-                        from_utf8(&version.name("version").unwrap().as_bytes())
+                        from_utf8(version.name("version").unwrap().as_bytes())
                             .unwrap()
                             .to_string(),
                     )
@@ -186,7 +188,7 @@ pub fn get_client() -> reqwest::blocking::Client {
 
 /// gets the FriendlyName1 value from a device
 fn get_friendlyname(input_device: &TasmotaDevice) -> Option<String> {
-    let fn_result = get_cmnd(&input_device, &get_client(), "FriendlyName1");
+    let fn_result = get_cmnd(input_device, &get_client(), "FriendlyName1");
     let response = match fn_result {
         Ok(value) => value,
         Err(error) => {
@@ -227,7 +229,7 @@ fn get_friendlyname(input_device: &TasmotaDevice) -> Option<String> {
 }
 /// gets the DeviceNAme value from a device
 fn get_devicename(input_device: &TasmotaDevice) -> Option<String> {
-    let fn_result = get_cmnd(&input_device, &get_client(), "DeviceName");
+    let fn_result = get_cmnd(input_device, &get_client(), "DeviceName");
     let response = match fn_result {
         Ok(value) => value,
         Err(error) => {
@@ -268,7 +270,7 @@ fn get_devicename(input_device: &TasmotaDevice) -> Option<String> {
 
 /// Does the checking and pulling thing, returns a [TasmotaDevice] object if it succeeds..
 pub fn check_host(mut input_device: TasmotaDevice) -> Result<TasmotaDevice, String> {
-    info!("Checking {}", input_device.ip);
+    debug!("Checking {}", input_device.ip);
 
     input_device.version = check_is_tasmota(&input_device);
 
@@ -304,12 +306,23 @@ fn get_config() -> config::Config {
 }
 
 fn main() -> std::io::Result<()> {
+
+    let args = Args::parse();
+
     if env::var_os("RUST_LOG").is_none() {
         env::set_var("RUST_LOG", "info");
     }
-
     pretty_env_logger::init_timed();
-    let config = get_config();
+
+    info!("args: {:?}", args);
+
+
+    let mut config = get_config();
+
+    if let Some(target) = args.target {
+        config.set("ip_range", target).unwrap();
+    };
+
 
     match config.get_int("max_threads") {
         Ok(threads) => {
@@ -340,15 +353,21 @@ fn main() -> std::io::Result<()> {
 
     // eprintln!("Auth: {:?}/{:?}", username, password);
 
-    let config_ip: String = match config.get("ip_range") {
+    let config_ip = match config.get_str("ip_range") {
         Err(error) => panic!("Failed to get ip_range from config: {:?}", error),
         Ok(value) => {
-            eprintln!("IP config: {}", &value);
+            info!("IP config: {}", &value);
             value
         }
     };
 
-    let net: Ipv4Net = config_ip.parse().unwrap();
+    let net: Ipv4Net = match config_ip.parse() {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("Failed to parse input {:?} : {:?}", config.get_str("ip_range").unwrap(), error);
+            exit(1);
+        }
+    };
     // let host = String::from("http://10.0.5.129");
     // println!("!");
     // if we fail at this point we deserve to...

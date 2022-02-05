@@ -67,3 +67,12 @@ impl std::fmt::Display for TasmotaDevice {
         )
     }
 }
+
+/// Represents configuration of the app
+#[derive(Debug, Clone)]
+pub struct TasmotaConfig {
+    /// username for access
+    pub username: String,
+    /// password for access
+    pub password: Option<String>,
+}
