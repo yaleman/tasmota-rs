@@ -125,7 +125,7 @@ pub fn check_is_tasmota(device: &TasmotaDevice) -> Option<String> {
         }
 
         Ok(response) => {
-            warn!("Successfully connected to {}", device.ip);
+            info!("Successfully connected to {}", device.ip);
             let result_bytes = response.bytes().unwrap();
             match RE.captures(&result_bytes) {
                 Some(version) => {
