@@ -314,7 +314,7 @@ fn main() -> std::io::Result<()> {
     }
     pretty_env_logger::init_timed();
 
-    info!("args: {:?}", args);
+    debug!("args: {:?}", args);
 
 
     let mut config = get_config();
