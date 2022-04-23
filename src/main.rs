@@ -18,8 +18,8 @@ pub mod structs;
 
 use ipnet::Ipv4Net;
 use regex::bytes::Regex;
-use std::time::Duration;
 use std::process::exit;
+use std::time::Duration;
 
 use crate::structs::*;
 
@@ -295,18 +295,29 @@ pub fn check_host(mut input_device: TasmotaDevice) -> Result<TasmotaDevice, Stri
     Ok(input_device)
 }
 
-fn get_config() -> config::Config {
+fn get_config(target: Option<String>) -> config::Config {
     let config_file = String::from("~/.config/tasmota-rs.json");
     let config_filename: String = shellexpand::tilde(&config_file).into_owned();
-    let mut config = config::Config::default();
-    config
-        .merge(config::File::with_name(&config_filename))
-        .unwrap();
-    config
+
+    let mut builder = config::Config::builder().add_source(config::File::new(
+        &config_filename,
+        config::FileFormat::Json,
+    ));
+    builder = match builder.set_override_option("ip_range", target) {
+        Ok(builder) => builder,
+        Err(error) => panic!("failed to set ip range: {:?}", error),
+    };
+
+    match builder.build() {
+        Ok(config) => config,
+        Err(error) => panic!(
+            "Couldn't load config from {:?}: {:?}",
+            config_filename, error
+        ),
+    }
 }
 
 fn main() -> std::io::Result<()> {
-
     let args = Args::parse();
 
     if env::var_os("RUST_LOG").is_none() {
@@ -316,13 +327,7 @@ fn main() -> std::io::Result<()> {
 
     debug!("args: {:?}", args);
 
-
-    let mut config = get_config();
-
-    if let Some(target) = args.target {
-        config.set("ip_range", target).unwrap();
-    };
-
+    let config = get_config(args.target);
 
     match config.get_int("max_threads") {
         Ok(threads) => {
@@ -337,13 +342,13 @@ fn main() -> std::io::Result<()> {
         }
     }
 
-    let username = match config.get_str("username") {
+    let username = match config.get_string("username") {
         Ok(value) => value,
         Err(error) => {
             panic!("Couldn't get username: {:?}", error);
         }
     };
-    let password = match config.get_str("password") {
+    let password = match config.get_string("password") {
         Err(error) => {
             eprintln!("Failed to get password: {:?}", error);
             None
@@ -353,7 +358,7 @@ fn main() -> std::io::Result<()> {
 
     // eprintln!("Auth: {:?}/{:?}", username, password);
 
-    let config_ip = match config.get_str("ip_range") {
+    let config_ip = match config.get_string("ip_range") {
         Err(error) => panic!("Failed to get ip_range from config: {:?}", error),
         Ok(value) => {
             info!("IP config: {}", &value);
@@ -364,7 +369,11 @@ fn main() -> std::io::Result<()> {
     let net: Ipv4Net = match config_ip.parse() {
         Ok(value) => value,
         Err(error) => {
-            eprintln!("Failed to parse input {:?} : {:?}", config.get_str("ip_range").unwrap(), error);
+            eprintln!(
+                "Failed to parse input {:?} : {:?}",
+                config.get_string("ip_range").unwrap(),
+                error
+            );
             exit(1);
         }
     };
