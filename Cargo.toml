@@ -25,6 +25,6 @@ shellexpand = "2.0"
 log = "0.4.17"
 pretty_env_logger = "0.4.0"
 
-rayon = "1.5.1"
+rayon = "1.5.3"
 
 clap = { version = "3.1.14", features = ["derive"] }
