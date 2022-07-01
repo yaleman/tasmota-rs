@@ -14,22 +14,21 @@ use std::str::from_utf8;
 // use std::sync::mpsc::channel;
 use rayon::prelude::*;
 
-pub mod structs;
+pub mod lib;
 
 use ipnet::Ipv4Net;
 use regex::bytes::Regex;
 use std::process::exit;
 use std::time::Duration;
 
-use crate::structs::*;
+use crate::lib::*;
 
 use clap::Parser;
 
-/// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long)]
+    #[clap(short, long, value_parser)]
     target: Option<String>,
 }
 
@@ -200,6 +199,7 @@ fn get_friendlyname(input_device: &TasmotaDevice) -> Option<String> {
             return None;
         }
     };
+
     debug!("friendly_name: {:?}", response);
     if response.status() != 200 {
         let result = format!(

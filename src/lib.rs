@@ -4,14 +4,31 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 /// Used for matching the friendly name command
+/// ```
+/// use serde_json;
+/// use tasmota::FriendlyName1;
+///
+/// let input = "{ \"FriendlyName1\": \"tasmota_DC7194\" }";
+/// let parsed: FriendlyName1 = serde_json::from_str(&input).unwrap();
+/// ```
+///
 pub struct FriendlyName1 {
     #[serde(rename = "FriendlyName1")]
     /// like it says on the tin
     pub friendly_name_1: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+
 /// Used for matching the device name command
+/// ```
+/// use serde_json;
+/// use tasmota::DeviceName;
+///
+/// let input = "{ \"DeviceName\": \"tasmota_DC7194\" }";
+/// let parsed: DeviceName = serde_json::from_str(&input).unwrap();
+/// ```
+///
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DeviceName {
     #[serde(rename = "DeviceName")]
     /// like it says on the tin
