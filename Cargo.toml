@@ -9,7 +9,7 @@ edition = "2018"
 name = "tasmota"
 
 [dependencies]
-regex = "1.5"
+regex = "1.6"
 
 # used in structs.rs for the regex
 lazy_static = "1.4.0"
