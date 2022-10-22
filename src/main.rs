@@ -125,7 +125,13 @@ pub fn check_is_tasmota(device: &TasmotaDevice) -> Option<String> {
 
         Ok(response) => {
             info!("Successfully connected to {}", device.ip);
-            let result_bytes = response.bytes().unwrap();
+            let result_bytes = match response.bytes() {
+                Ok(value) => value,
+                Err(error) => {
+                    error!("Failed to query bytes from {}: {error:?}", device.ip);
+                    return None;
+                }
+            };
             match RE.captures(&result_bytes) {
                 Some(version) => {
                     debug!(

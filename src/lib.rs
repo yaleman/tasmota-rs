@@ -18,7 +18,6 @@ pub struct FriendlyName1 {
     pub friendly_name_1: String,
 }
 
-
 /// Used for matching the device name command
 /// ```
 /// use serde_json;
