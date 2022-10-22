@@ -1,6 +1,5 @@
 //! Tasmota-querying thingie. I'm sorry if you use this, it'll be terrible for sure.
 
-#![warn(missing_docs)]
 // used in structs for the regex
 #[macro_use]
 extern crate lazy_static;
