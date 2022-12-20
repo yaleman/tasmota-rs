@@ -13,14 +13,12 @@ use std::str::from_utf8;
 // use std::sync::mpsc::channel;
 use rayon::prelude::*;
 
-pub mod lib;
-
 use ipnet::Ipv4Net;
 use regex::bytes::Regex;
 use std::process::exit;
 use std::time::Duration;
 
-use crate::lib::*;
+use tasmota::*;
 
 use clap::Parser;
 
@@ -29,16 +27,8 @@ use clap::Parser;
 struct Args {
     #[clap(short, long, value_parser)]
     target: Option<String>,
-}
-
-impl TasmotaConfig {
-    /// Build a new [TasmotaConfig]
-    pub fn new(username: &str, password: Option<&str>) -> Self {
-        TasmotaConfig {
-            username: username.to_string(),
-            password: password.map(str::to_string),
-        }
-    }
+    #[clap(short, long, value_parser)]
+    version_filter: Option<String>,
 }
 
 /// Hand it the bytes representation of the webpage, you'll (maybe) get the MAC address back.
@@ -291,12 +281,7 @@ pub fn check_host(mut input_device: TasmotaDevice) -> Result<TasmotaDevice, Stri
 
     input_device.mac_address = get_mac_address(&input_device);
 
-    // TODO: grab the version from check_tasmota
-
     // debug!("mac_address: \t{:?}", input_device.mac_address);
-
-    // debug!("friendly_name_1: \t{:?}", input_device.friendly_name_1);
-    // debug!("devicename: \t{:?}", input_device.device_name);
     Ok(input_device)
 }
 
@@ -333,6 +318,10 @@ fn main() -> std::io::Result<()> {
     debug!("args: {:?}", args);
 
     let config = get_config(args.target);
+
+    if let Some(version) = &args.version_filter {
+        info!("Filtering on versions containing \"{version}\"");
+    }
 
     match config.get_int("max_threads") {
         Ok(threads) => {
@@ -382,11 +371,8 @@ fn main() -> std::io::Result<()> {
             exit(1);
         }
     };
-    // let host = String::from("http://10.0.5.129");
-    // println!("!");
-    // if we fail at this point we deserve to...
 
-    let mut tasks: Vec<TasmotaDevice> = [].to_vec();
+    let mut tasks: Vec<TasmotaDevice> = vec![];
 
     for ip in net.hosts() {
         tasks.push(TasmotaDevice::new(
@@ -404,6 +390,11 @@ fn main() -> std::io::Result<()> {
         info!("Listing found devices");
         info!("#####################");
         for device in results.into_iter().flatten() {
+            if let (Some(filter_vers), Some(vers)) = (&args.version_filter, &device.version) {
+                if !vers.contains(filter_vers) {
+                    continue;
+                }
+            }
             info!("{}", device);
         }
     }

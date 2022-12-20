@@ -92,3 +92,13 @@ pub struct TasmotaConfig {
     /// password for access
     pub password: Option<String>,
 }
+
+impl TasmotaConfig {
+    /// Build a new [TasmotaConfig]
+    pub fn new(username: &str, password: Option<&str>) -> Self {
+        TasmotaConfig {
+            username: username.to_string(),
+            password: password.map(str::to_string),
+        }
+    }
+}
