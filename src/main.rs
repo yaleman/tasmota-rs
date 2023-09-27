@@ -113,7 +113,7 @@ pub fn check_is_tasmota(device: &TasmotaDevice) -> Option<String> {
         }
 
         Ok(response) => {
-            info!("Successfully connected to {}", device.ip);
+            debug!("Successfully connected to {}", device.ip);
             let result_bytes = match response.bytes() {
                 Ok(value) => value,
                 Err(error) => {
