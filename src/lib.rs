@@ -72,7 +72,7 @@ impl std::fmt::Display for TasmotaDevice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{ip={:?}, FriendlyName1={:?}, DeviceName={:?}, mac_address={:?}, version={:?} }}",
+            "url=http://{:?} FriendlyName1={:?}  DeviceName={:?} mac_address={:?} version={:?}",
             self.ip,
             self.friendly_name_1
                 .as_ref()
