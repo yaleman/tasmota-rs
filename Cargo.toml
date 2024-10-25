@@ -15,7 +15,7 @@ regex = "1.11"
 lazy_static = "1.5.0"
 
 serde = { version = "1.0.210", features = ["derive"] }
-serde_json = "1.0.129"
+serde_json = "1.0.132"
 
 reqwest = { version = "0.12.4",  features = ["blocking", "json"] }
 
