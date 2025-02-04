@@ -1,8 +1,6 @@
 //! Tasmota-querying thingie. I'm sorry if you use this, it'll be terrible for sure.
 
 // used in structs for the regex
-#[macro_use]
-extern crate lazy_static;
 extern crate pretty_env_logger;
 #[macro_use]
 extern crate log;
@@ -10,6 +8,7 @@ extern crate log;
 use std::env;
 use std::str::from_utf8;
 
+use once_cell::sync::Lazy;
 // use std::sync::mpsc::channel;
 use rayon::prelude::*;
 
@@ -90,14 +89,14 @@ pub fn check_is_tasmota(device: &TasmotaDevice) -> Option<String> {
     let response = crate::get_device_uri(device, &get_client(), String::from("/"));
     // eprintln!("check_is_tasmota debug: {:?}", &response);
     // Check for this Tasmota 9.5.0.8 by Theo Arends
-    lazy_static! {
-        static ref RE: Regex = match regex::bytes::Regex::new(
-            r"(Tasmota (?P<version>\d+\.\d+\.(\d+|\d+\.\d+)) by Theo Arends)"
+    static RE: Lazy<Regex> = Lazy::new(|| {
+        match regex::bytes::Regex::new(
+            r"(Tasmota (?P<version>\d+\.\d+\.(\d+|\d+\.\d+)) by Theo Arends)",
         ) {
             Ok(value) => value,
             Err(error) => panic!("failed to create tasmota_finder regex: {:?}", error),
-        };
-    }
+        }
+    });
     match response {
         Err(error) => {
             if error.is_timeout() {
