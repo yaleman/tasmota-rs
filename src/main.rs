@@ -7,9 +7,8 @@ extern crate log;
 
 use std::env;
 use std::str::from_utf8;
+use std::sync::LazyLock;
 
-use once_cell::sync::Lazy;
-// use std::sync::mpsc::channel;
 use rayon::prelude::*;
 
 use ipnet::Ipv4Net;
@@ -89,7 +88,7 @@ pub fn check_is_tasmota(device: &TasmotaDevice) -> Option<String> {
     let response = crate::get_device_uri(device, &get_client(), String::from("/"));
     // eprintln!("check_is_tasmota debug: {:?}", &response);
     // Check for this Tasmota 9.5.0.8 by Theo Arends
-    static RE: Lazy<Regex> = Lazy::new(|| {
+    static RE: LazyLock<Regex> = LazyLock::new(|| {
         match regex::bytes::Regex::new(
             r"(Tasmota (?P<version>\d+\.\d+\.(\d+|\d+\.\d+)) by Theo Arends)",
         ) {
