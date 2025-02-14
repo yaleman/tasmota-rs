@@ -19,7 +19,7 @@ reqwest = { version = "0.12.4", features = ["blocking", "json"] }
 mac_address = "1.1.7"
 ipnet = "2.11.0"
 
-config = { version = "0.14", features = ["json"] }
+config = { version = "0.15", features = ["json"] }
 shellexpand = "3.1"
 
 log = "0.4.25"
