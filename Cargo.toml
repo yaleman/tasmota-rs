@@ -22,7 +22,7 @@ ipnet = "2.11.0"
 config = { version = "0.15", features = ["json"] }
 shellexpand = "3.1"
 
-log = "0.4.25"
+log = "0.4.26"
 pretty_env_logger = "0.5.0"
 
 rayon = "1.10.0"
