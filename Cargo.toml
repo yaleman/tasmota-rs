@@ -9,7 +9,7 @@ edition = "2018"
 name = "tasmota"
 
 [dependencies]
-clap = { version = "4.5.50", features = ["derive"] }
+clap = { version = "4.5.51", features = ["derive"] }
 config = { version = "0.15.18", features = ["json"] }
 futures = "0.3.31"
 ipnet = "2.11.0"
