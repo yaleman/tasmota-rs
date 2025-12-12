@@ -17,7 +17,7 @@ log = "0.4.29"
 mac_address = "1.1.8"
 pretty_env_logger = "0.5.0"
 regex = "1.12"
-reqwest = { version = "0.12.24", features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12.25", features = ["json", "rustls-tls"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 shellexpand = "3.1"
