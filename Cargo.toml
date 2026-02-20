@@ -11,7 +11,7 @@ name = "tasmota"
 [dependencies]
 clap = { version = "4.5.58", features = ["derive"] }
 config = { version = "0.15.19", features = ["json"] }
-futures = "0.3.31"
+futures = "0.3.32"
 ipnet = "2.11.0"
 log = "0.4.29"
 mac_address = "1.1.8"
