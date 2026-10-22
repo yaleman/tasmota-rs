@@ -83,20 +83,29 @@ pub async fn get_mac_address(device: &TasmotaDevice, client: &Client) -> Option<
     }
 }
 
-/// Queries the home page of the device and looks for the version string to confirm if it's a Tasmota device.
-pub async fn check_is_tasmota(device: &TasmotaDevice, client: &Client) -> Option<String> {
-    // TODO: make this return a semver-ish thing
-    let response = get_device_uri(device, client, String::from("/")).await;
-    // eprintln!("check_is_tasmota debug: {:?}", &response);
+/// Extract the numeric firmware version from a Tasmota web-page footer.
+fn tasmota_version_from_page(page: &[u8]) -> Option<String> {
     // Check for this Tasmota 9.5.0.8 by Theo Arends
     static RE: LazyLock<Regex> = LazyLock::new(|| {
         match regex::bytes::Regex::new(
-            r"(Tasmota (?P<version>\d+\.\d+\.(\d+|\d+\.\d+)) by Theo Arends)",
+            r"(Tasmota (?P<version>\d+\.\d+\.\d+(?:\.\d+)?)(?:\([A-Za-z0-9_.-]+\))? by Theo Arends)",
         ) {
             Ok(value) => value,
             Err(error) => panic!("failed to create tasmota_finder regex: {:?}", error),
         }
     });
+    RE.captures(page).map(|captures| {
+        from_utf8(captures.name("version").unwrap().as_bytes())
+            .unwrap()
+            .to_owned()
+    })
+}
+
+/// Queries the home page of the device and looks for the version string to confirm if it's a Tasmota device.
+pub async fn check_is_tasmota(device: &TasmotaDevice, client: &Client) -> Option<String> {
+    // TODO: make this return a semver-ish thing
+    let response = get_device_uri(device, client, String::from("/")).await;
+    // eprintln!("check_is_tasmota debug: {:?}", &response);
     match response {
         Err(error) => {
             if error.is_timeout() {
@@ -120,18 +129,8 @@ pub async fn check_is_tasmota(device: &TasmotaDevice, client: &Client) -> Option
                     return None;
                 }
             };
-            match RE.captures(&result_bytes) {
-                Some(version) => {
-                    debug!(
-                        "Named capture: {:?}",
-                        from_utf8(version.name("version").unwrap().as_bytes())
-                    );
-                    Some(
-                        from_utf8(version.name("version").unwrap().as_bytes())
-                            .unwrap()
-                            .to_string(),
-                    )
-                }
+            match tasmota_version_from_page(&result_bytes) {
+                Some(version) => Some(version),
                 None => {
                     debug!("Failed to find version for {:?}", device.ip);
                     None
@@ -409,4 +408,40 @@ async fn main() -> std::io::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tasmota_version_from_page;
+
+    #[test]
+    fn recognizes_legacy_and_build_suffixed_firmware_footers() {
+        for (footer, expected) in [
+            ("Tasmota 12.3.1.1 by Theo Arends", "12.3.1.1"),
+            ("Tasmota 13.1.0 by Theo Arends", "13.1.0"),
+            ("Tasmota 9.5.0.8 by Theo Arends", "9.5.0.8"),
+            ("Tasmota 13.3.0.5(tasmota) by Theo Arends", "13.3.0.5"),
+            ("Tasmota 13.3.0(tasmota32) by Theo Arends", "13.3.0"),
+        ] {
+            let page = format!("<html><footer>{footer}</footer></html>");
+            assert_eq!(
+                tasmota_version_from_page(page.as_bytes()).as_deref(),
+                Some(expected),
+                "{footer}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_unrelated_pages_and_malformed_firmware_footers() {
+        for page in [
+            "<html>Login Required</html>",
+            "Tasmota by Theo Arends",
+            "Tasmota 13.3 by Theo Arends",
+            "Tasmota 13.3.0.5(tasmota by Theo Arends",
+            "Tasmota 13.3.0.5(tasmota) by somebody else",
+        ] {
+            assert_eq!(tasmota_version_from_page(page.as_bytes()), None, "{page}");
+        }
+    }
 }
